@@ -1,3 +1,5 @@
 ﻿_*.png
 data/awesome-list.md
 node_modules/
+
+_upload/
