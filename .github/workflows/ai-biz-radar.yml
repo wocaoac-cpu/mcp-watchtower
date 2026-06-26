@@ -1,0 +1,48 @@
+name: AI Biz Radar
+
+# 每 6 小时跑一次（UTC）。也可以在 Actions 页面手动点 "Run workflow" 立即测试。
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+# 允许把去重历史 commit 回仓库。
+permissions:
+  contents: write
+
+# 避免上一轮还没跑完又触发下一轮。
+concurrency:
+  group: ai-biz-radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run radar
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # 可选：覆盖模型或每轮数量
+          # GEMINI_MODEL: gemini-2.5-flash
+          # IDEAS_PER_RUN: "3"
+        run: node tools/ai-biz-radar/radar.mjs
+
+      - name: Commit dedup history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- tools/ai-biz-radar/history.json; then
+            git add tools/ai-biz-radar/history.json
+            git commit -m "chore(radar): update dedup history"
+            git push
+          else
+            echo "history 无变化，跳过提交"
+          fi
