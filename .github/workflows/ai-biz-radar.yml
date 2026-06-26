@@ -1,9 +1,10 @@
 name: AI Biz Radar
 
-# 每 6 小时跑一次（UTC）。也可以在 Actions 页面手动点 "Run workflow" 立即测试。
+# 每小时跑一次（UTC，off-minute 错峰）。也可在 Actions 页面手动 "Run workflow" 立即测试。
+# Gemini 免费档约 1500 次/天，每小时一轮（每轮约 2-3 次调用）绰绰有余。
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 # 允许把去重历史 commit 回仓库。
@@ -30,19 +31,23 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # 可选：覆盖模型或每轮数量
+          # 可选调参（默认值见 radar.mjs 顶部注释）
+          IDEAS_PER_RUN: "3"
+          CANDIDATE_POOL: "6"
+          MIN_CONFIDENCE: "0.5"
           # GEMINI_MODEL: gemini-2.5-flash
-          # IDEAS_PER_RUN: "3"
+          # OUTPUT_LANG: 中文
+          # VERIFY_SOURCES: "1"
         run: node tools/ai-biz-radar/radar.mjs
 
-      - name: Commit dedup history
+      - name: Commit history & archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- tools/ai-biz-radar/history.json; then
-            git add tools/ai-biz-radar/history.json
-            git commit -m "chore(radar): update dedup history"
+          git add tools/ai-biz-radar/history.json tools/ai-biz-radar/archive.md
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(radar): update history & archive"
             git push
           else
-            echo "history 无变化，跳过提交"
+            echo "无变化，跳过提交"
           fi
